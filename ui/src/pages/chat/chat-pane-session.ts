@@ -53,8 +53,7 @@ import { scheduleControlUiAfterPaint } from "./performance.ts";
 import { scheduleChatScroll } from "./scroll.ts";
 
 export abstract class ChatPaneSession extends ChatPaneTaskSuggestions {
-  private deferredSessionHydrationActive = false;
-  private pendingDeferredSessionHydration: (() => void) | null = null;
+  private deferredSessionHydration: { resume?: () => void } | null = null;
   /** Hidden-run acknowledgements in flight or sent, keyed by run and activity revision. */
   private readonly hiddenRunReadRequests = new Map<string, number | null>();
 
@@ -65,7 +64,7 @@ export abstract class ChatPaneSession extends ChatPaneTaskSuggestions {
       this.presented &&
       document.visibilityState !== "hidden" &&
       (explicit ||
-        (!this.deferredSessionHydrationActive &&
+        (!this.deferredSessionHydration &&
           (parseCatalogSessionKey(state.sessionKey) ||
             this.transcriptReady ||
             getAcceptedChatHistorySession(state)))),
@@ -245,19 +244,17 @@ export abstract class ChatPaneSession extends ChatPaneTaskSuggestions {
     if (!state) {
       return;
     }
-    this.deferredSessionHydrationActive = true;
-    this.pendingDeferredSessionHydration = null;
-    const requestVersion = ++this.deferredSessionHydrationRequestVersion;
+    const hydration: NonNullable<ChatPaneSession["deferredSessionHydration"]> = {};
+    this.deferredSessionHydration = hydration;
     const connectionGeneration = this.connectionGeneration;
     const client = state.client;
     const retireIfCurrent = () => {
-      if (this.deferredSessionHydrationRequestVersion === requestVersion) {
-        this.deferredSessionHydrationActive = false;
-        this.pendingDeferredSessionHydration = null;
+      if (this.deferredSessionHydration === hydration) {
+        this.deferredSessionHydration = null;
       }
     };
     const isCurrent = () =>
-      this.deferredSessionHydrationRequestVersion === requestVersion &&
+      this.deferredSessionHydration === hydration &&
       this.connectionGeneration === connectionGeneration &&
       this.state === state &&
       state.connected &&
@@ -269,15 +266,15 @@ export abstract class ChatPaneSession extends ChatPaneTaskSuggestions {
         return;
       }
       if (!this.presented || document.visibilityState === "hidden") {
-        this.pendingDeferredSessionHydration = () => scheduleHydration(historyCommitted);
+        hydration.resume = () => scheduleHydration(historyCommitted);
         return;
       }
-      this.pendingDeferredSessionHydration = null;
+      hydration.resume = undefined;
       // These affordances do not shape the transcript. Start them together only
       // after the transcript paints; a DOM commit still runs before the browser can paint.
       scheduleControlUiAfterPaint(state, () => {
         if (isCurrent() && this.presented && document.visibilityState !== "hidden") {
-          this.deferredSessionHydrationActive = false;
+          this.deferredSessionHydration = null;
           state.requestUpdate?.();
           void this.refreshTaskSuggestions({ automatic: true });
           if (historyCommitted) {
@@ -291,7 +288,7 @@ export abstract class ChatPaneSession extends ChatPaneTaskSuggestions {
           this.hydrateSessionCompanion(sessionKey);
           void this.refreshSessionPullRequests();
         } else if (isCurrent()) {
-          this.pendingDeferredSessionHydration = () => scheduleHydration(historyCommitted);
+          hydration.resume = () => scheduleHydration(historyCommitted);
         } else {
           retireIfCurrent();
         }
@@ -301,16 +298,17 @@ export abstract class ChatPaneSession extends ChatPaneTaskSuggestions {
   }
 
   protected resumeDeferredSessionHydration(): boolean {
-    const resume = this.pendingDeferredSessionHydration;
-    this.pendingDeferredSessionHydration = null;
-    resume?.();
-    return this.deferredSessionHydrationActive;
+    const hydration = this.deferredSessionHydration;
+    if (hydration) {
+      const resume = hydration.resume;
+      hydration.resume = undefined;
+      resume?.();
+    }
+    return this.deferredSessionHydration !== null;
   }
 
   protected retireDeferredSessionHydration(): void {
-    this.deferredSessionHydrationRequestVersion += 1;
-    this.deferredSessionHydrationActive = false;
-    this.pendingDeferredSessionHydration = null;
+    this.deferredSessionHydration = null;
   }
 
   protected markSessionRead(row: GatewaySessionRow | undefined) {

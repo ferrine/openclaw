@@ -352,6 +352,26 @@ export function handleChatGatewayEvent(state: ChatState, incoming?: ChatEventPay
   const materializeVisibleStream = (
     materializeOpts: Parameters<typeof materializeVisibleAssistantStreamMessages>[2] = {},
   ) => materializeVisibleAssistantStreamMessages(state.chatMessages, state, materializeOpts);
+  const publishTerminalStream = (
+    message: Record<string, unknown>,
+    visibleMessages: unknown[],
+    disposition?: Parameters<typeof rememberLiveTerminalRun>[3],
+    replaceStream = true,
+  ) => {
+    const live = rememberLiveTerminalRun(
+      message,
+      terminalRunId,
+      terminalAfterBoundaryRunId,
+      disposition,
+    );
+    publishVisibleTerminal(
+      message,
+      replaceStream
+        ? appendTerminalAssistantMessage(visibleMessages, live)
+        : [...visibleMessages, live],
+      terminalRunId,
+    );
+  };
   const publishInterruptedStream = () => {
     publishChatSessionProjectionMessages(state, materializeVisibleStream(), { scope });
     // Message-less terminal events still own the retained partial's outcome
@@ -410,13 +430,8 @@ export function handleChatGatewayEvent(state: ChatState, incoming?: ChatEventPay
         (payload.itemStartOffset ?? Number.POSITIVE_INFINITY) <= next.length
           ? payload.itemStartOffset
           : undefined;
-      if (payload.itemId !== undefined) {
-        state.chatStreamItemId = payload.itemId;
-        state.chatStreamItemStartOffset = itemStartOffset;
-      } else {
-        state.chatStreamItemId = undefined;
-        state.chatStreamItemStartOffset = undefined;
-      }
+      state.chatStreamItemId = payload.itemId;
+      state.chatStreamItemStartOffset = payload.itemId !== undefined ? itemStartOffset : undefined;
       state.chatStream = next;
       if (
         payload.runId &&
@@ -465,17 +480,7 @@ export function handleChatGatewayEvent(state: ChatState, incoming?: ChatEventPay
           publishChatSessionProjectionMessages(state, visibleMessages, { scope });
         }
       } else if (finalMessage && !shouldHideAssistantChatMessage(finalMessage)) {
-        const visibleMessages = materializeVisibleStream();
-        const liveFinal = rememberLiveTerminalRun(
-          finalMessage,
-          terminalRunId,
-          terminalAfterBoundaryRunId,
-        );
-        publishVisibleTerminal(
-          finalMessage,
-          appendTerminalAssistantMessage(visibleMessages, liveFinal),
-          terminalRunId,
-        );
+        publishTerminalStream(finalMessage, materializeVisibleStream());
       } else {
         publishChatSessionProjectionMessages(state, materializeVisibleStream(), { scope });
       }
@@ -488,17 +493,7 @@ export function handleChatGatewayEvent(state: ChatState, incoming?: ChatEventPay
         replacementMessages: [normalizedMessage],
         includeCurrent: false,
       });
-      const liveAborted = rememberLiveTerminalRun(
-        normalizedMessage,
-        terminalRunId,
-        terminalAfterBoundaryRunId,
-        "aborted",
-      );
-      publishVisibleTerminal(
-        normalizedMessage,
-        appendTerminalAssistantMessage(visibleMessages, liveAborted),
-        terminalRunId,
-      );
+      publishTerminalStream(normalizedMessage, visibleMessages, "aborted");
     } else {
       publishInterruptedStream();
     }
@@ -527,18 +522,11 @@ export function handleChatGatewayEvent(state: ChatState, incoming?: ChatEventPay
         const visibleMessages = materializeVisibleStream({
           includeCurrent: !replacesVisibleStream,
         });
-        const liveError = rememberLiveTerminalRun(
+        publishTerminalStream(
           visiblePayloadMessage,
-          terminalRunId,
-          terminalAfterBoundaryRunId,
+          visibleMessages,
           projectedRun?.currentRun?.status === "timeout" ? "timeout" : "error",
-        );
-        publishVisibleTerminal(
-          visiblePayloadMessage,
-          replacesVisibleStream
-            ? appendTerminalAssistantMessage(visibleMessages, liveError)
-            : [...visibleMessages, liveError],
-          terminalRunId,
+          replacesVisibleStream,
         );
       } else {
         publishInterruptedStream();

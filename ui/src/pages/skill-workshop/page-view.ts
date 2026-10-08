@@ -64,6 +64,12 @@ export function renderSkillWorkshopPage(
     action();
     requestUpdate();
   };
+  const changeField =
+    <Key extends keyof SkillWorkshopState>(key: Key) =>
+    (value: SkillWorkshopState[Key]) => {
+      state[key] = value;
+      requestUpdate();
+    };
   const selectMode = (mode: SkillWorkshopMode) => {
     state.skillWorkshopQuery = "";
     state.skillWorkshopFilePreviewKey = null;
@@ -199,14 +205,8 @@ export function renderSkillWorkshopPage(
                   );
                 }
               },
-              onFilePreviewQueryChange: (query) => {
-                state.skillWorkshopFilePreviewQuery = query;
-                requestUpdate();
-              },
-              onQueueWidthChange: (width) => {
-                state.skillWorkshopQueueWidth = width;
-                requestUpdate();
-              },
+              onFilePreviewQueryChange: changeField("skillWorkshopFilePreviewQuery"),
+              onQueueWidthChange: changeField("skillWorkshopQueueWidth"),
               onModeChange: selectMode,
               onSelect: selectProposal,
               onPrev: () => selectRelativeProposal(-1),
@@ -226,10 +226,7 @@ export function renderSkillWorkshopPage(
                 runAdminAction("skills.proposals.reject", () =>
                   onLifecycleAction("reject", decision),
                 ),
-              onRevisionDraftChange: (draft) => {
-                state.skillWorkshopRevisionDraft = draft;
-                requestUpdate();
-              },
+              onRevisionDraftChange: changeField("skillWorkshopRevisionDraft"),
               onRevisionCancel: () => {
                 if (revisionRecoveryActive) {
                   return;

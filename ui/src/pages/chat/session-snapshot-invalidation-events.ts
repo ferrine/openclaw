@@ -1,3 +1,5 @@
+import { asNullableObjectRecord } from "@openclaw/normalization-core/record-coerce";
+
 export type SessionSnapshotInvalidationReason = "cache-eviction";
 
 type SnapshotInvalidation =
@@ -29,23 +31,11 @@ function broadcastSnapshotInvalidation(invalidation: SnapshotInvalidation): void
 
 function parseSnapshotInvalidation(value: string): SnapshotInvalidation {
   try {
-    const parsed: unknown = JSON.parse(value);
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      "scopePrefix" in parsed &&
-      typeof parsed.scopePrefix === "string" &&
-      parsed.scopePrefix.startsWith("scope:[")
-    ) {
+    const parsed = asNullableObjectRecord(JSON.parse(value));
+    if (typeof parsed?.scopePrefix === "string" && parsed.scopePrefix.startsWith("scope:[")) {
       return { scopePrefix: parsed.scopePrefix };
     }
-    if (
-      parsed !== null &&
-      typeof parsed === "object" &&
-      "sessionKey" in parsed &&
-      typeof parsed.sessionKey === "string" &&
-      parsed.sessionKey
-    ) {
+    if (typeof parsed?.sessionKey === "string" && parsed.sessionKey) {
       return {
         sessionKey: parsed.sessionKey,
         ...("reason" in parsed && parsed.reason === "cache-eviction"

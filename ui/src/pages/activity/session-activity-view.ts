@@ -252,14 +252,12 @@ function renderSessionLink(
     parseAgentSessionKey(row.key)?.agentId ??
     row.agentId ??
     resolveSessionNavigationAgentId(context);
+  const sessionHost = {
+    agentsList: context.agents.state.agentsList,
+    hello: context.gateway.snapshot.hello,
+  };
   const face = resolveSessionPreferredFace(row);
-  const addressable = isSessionKeyAddressable(
-    row.key,
-    isUiGlobalScopeConfigured({
-      agentsList: context.agents.state.agentsList,
-      hello: context.gateway.snapshot.hello,
-    }),
-  );
+  const addressable = isSessionKeyAddressable(row.key, isUiGlobalScopeConfigured(sessionHost));
   const target = addressable
     ? sessionNavigationTarget({
         face,
@@ -267,10 +265,7 @@ function renderSessionLink(
         fallbackAgentId: row.key === "global" ? agentId : resolveSessionNavigationAgentId(context),
         basePath: context.basePath,
         row,
-        mainKey: resolveUiConfiguredMainKey({
-          agentsList: context.agents.state.agentsList,
-          hello: context.gateway.snapshot.hello,
-        }),
+        mainKey: resolveUiConfiguredMainKey(sessionHost),
       })
     : null;
   const tag = target ? literal`a` : literal`div`;

@@ -339,6 +339,9 @@ export function buildChatItems(
   const currentTurnBounds =
     (currentRunId ? canvasRunBounds(currentRunId) : null) ??
     (activeInputKey ? { afterKey: activeInputKey } : historyTurnBounds);
+  const resolveRunBounds = (lookup: typeof canvasRunBounds, runId: unknown) =>
+    resolveRunInsertionBounds(lookup, runId, currentRunId, currentTurnBounds) ??
+    (!runId && activeInputKey ? currentTurnBounds : undefined);
   const boundToPendingInputs = (
     bounds: TurnInsertionBounds | null | undefined,
   ): TurnInsertionBounds | undefined => {
@@ -357,12 +360,7 @@ export function buildChatItems(
       continue;
     }
     const canvasBounds = boundToPendingInputs(
-      resolveRunInsertionBounds(
-        canvasRunBounds,
-        projection.item.message.runId,
-        currentRunId,
-        currentTurnBounds,
-      ) ?? (!projection.item.message.runId && activeInputKey ? currentTurnBounds : undefined),
+      resolveRunBounds(canvasRunBounds, projection.item.message.runId),
     );
     const { minimum: canvasMinimumIndex, maximum: canvasMaximumIndex } = insertionIndexesForBounds(
       items,
@@ -451,9 +449,7 @@ export function buildChatItems(
     boundaryRunId?: string,
     afterBoundaryRunId?: string,
   ): TurnInsertionBounds | undefined => {
-    const bounds =
-      resolveRunInsertionBounds(projectionRunBounds, runId, currentRunId, currentTurnBounds) ??
-      (!runId && activeInputKey ? currentTurnBounds : undefined);
+    const bounds = resolveRunBounds(projectionRunBounds, runId);
     const boundaryKey = boundaryRunId ? projectionRunBounds(boundaryRunId)?.afterKey : undefined;
     const afterBounds = afterBoundaryRunId ? projectionRunBounds(afterBoundaryRunId) : undefined;
     return boundToPendingInputs(

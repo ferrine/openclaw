@@ -312,6 +312,7 @@ export function renderChatComposer(props: ChatComposerProps) {
     ) {
       requestUpdate();
     }
+    props.onTypingChange?.(Boolean(target.value.trim()), target.value);
   };
   const handleBeforeInput = (event: InputEvent) => {
     const target = event.target;
@@ -356,7 +357,6 @@ export function renderChatComposer(props: ChatComposerProps) {
       state.mentionMenu.close();
     }
     syncComposerValue(target, typedAtSign);
-    props.onTypingChange?.(Boolean(target.value.trim()), target.value);
   };
   const handleSelect = (event: Event) => {
     const target = event.target as HTMLTextAreaElement;
@@ -378,8 +378,6 @@ export function renderChatComposer(props: ChatComposerProps) {
       state.composingDraft = null;
     }
     syncComposerValue(event.target as HTMLTextAreaElement);
-    const value = (event.target as HTMLTextAreaElement).value;
-    props.onTypingChange?.(Boolean(value.trim()), value);
   };
   const handleBlur = (event: FocusEvent) => {
     clearCompositionEnd(event);
